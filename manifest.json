@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Auto Close Tab",
+  "name": "Criteria Toolkit",
   "version": "1.0",
-  "description": "Automatically closes tabs with specific URL after 5 seconds",
-  "permissions": ["tabs", "webNavigation"],
+  "description": "Helpful criteria specific tools to browsers - Automatically closes VPN tabs when authentication is complete",
+  "permissions": ["tabs", "webNavigation", "storage", "scripting"],
+  "host_permissions": ["http://127.0.0.1:35001/"],
   "background": {
     "service_worker": "background.js"
   },
@@ -11,5 +12,20 @@
     "gecko": {
       "id": "tarun.singh@criteriacorp.com"
     }
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "logo.png",
+      "32": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
+    }
+  },
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
   }
 }

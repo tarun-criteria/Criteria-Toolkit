@@ -1,4 +1,4 @@
-# Auto Close AWS VPN Tab Extension
+# Criteria Toolkit Extension
 
 A browser extension that automatically closes tabs with the URL `http://127.0.0.1:35001/` after 5 seconds. Works with Chrome and Edge browsers.
 
