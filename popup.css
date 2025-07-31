@@ -1,0 +1,178 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #1E2027;
+    color: #E0E0E0;
+    margin: 0;
+    width: 300px;
+}
+
+.container {
+    padding: 12px;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+}
+
+.logo img {
+    width: 32px;
+    height: 32px;
+}
+
+.title-container h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.title-container p {
+    font-size: 12px;
+    color: #8B949E;
+    margin: 0;
+}
+
+.feature-toggle {
+    background-color: #2A2D35;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.feature-info {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+}
+
+.feature-icon {
+    border-radius: 6px;
+    padding: 6px;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.feature-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.shield-icon {
+    background-color: rgba(22, 163, 74, 0.2);
+}
+
+.shield-icon svg {
+    color: #16A34A;
+}
+
+.code-icon {
+    background-color: rgba(59, 130, 246, 0.2);
+}
+
+.code-icon svg {
+    color: #3B82F6;
+}
+
+/* The switch - the box around the slider */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+/* Hide default HTML checkbox */
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* The slider */
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #4A4D55;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: #3B82F6; /* Default blue for redirect */
+}
+
+#autoClose:checked + .slider {
+    background-color: #16A34A; /* Green for auto close */
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+    -webkit-transform: translateX(20px);
+    -ms-transform: translateX(20px);
+    transform: translateX(20px);
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid #30363D;
+    margin-top: 16px;
+}
+
+.github-link {
+    color: #8B949E;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.github-link:hover {
+    text-decoration: underline;
+}
+
+.version {
+    color: #8B949E;
+    font-size: 12px;
+}

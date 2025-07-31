@@ -3,10 +3,22 @@
   "name": "Criteria Toolkit",
   "version": "1.0",
   "description": "Helpful criteria specific tools to browsers - Automatically closes VPN tabs when authentication is complete",
-  "permissions": ["tabs", "webNavigation", "storage", "scripting"],
-  "host_permissions": ["http://127.0.0.1:35001/"],
+  "permissions": ["tabs", "webNavigation", "storage", "scripting", "declarativeNetRequest"],
+  "host_permissions": [
+    "http://127.0.0.1:35001/",
+    "https://hireselect-dev.criteriacorp.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
   },
   "browser_specific_settings": {
     "gecko": {

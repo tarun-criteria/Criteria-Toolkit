@@ -8,9 +8,8 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 // DOM elements
 const autoCloseToggle = document.getElementById('autoClose');
-const statusIndicator = document.getElementById('statusIndicator');
-const statusText = document.getElementById('statusText');
-const versionElement = document.getElementById('version');
+const frontendRedirectToggle = document.getElementById('frontendRedirectToggle');
+const versionElement = document.querySelector('.version');
 
 /**
  * Sends a message to the background script
@@ -34,82 +33,52 @@ function sendMessage(message) {
 }
 
 /**
- * Updates the UI based on the current state
- * @param {boolean} isEnabled - Whether auto-close is enabled
- */
-function updateUI(isEnabled) {
-  // Update toggle switch
-  autoCloseToggle.dataset.on = isEnabled ? 'on' : 'off';
-  if (isEnabled) {
-    autoCloseToggle.classList.add('on');
-  } else {
-    autoCloseToggle.classList.remove('on');
-  }
-  
-  // Update status indicator
-  statusIndicator.classList.toggle('active', isEnabled);
-  statusText.textContent = isEnabled ? 'Auto close is active' : 'Auto close is deactivated';
-}
-
-/**
  * Initializes the popup state from storage
  */
-function initializePopup() {
-  browserAPI.storage.local.get(['autoClose'], (result) => {
-    try {
-      const isAutoCloseEnabled = result.autoClose !== undefined ? result.autoClose : true;
-      updateUI(isAutoCloseEnabled);
-    } catch (error) {
-      console.error('Error initializing popup:', error);
-      statusText.textContent = 'Error loading settings';
-    }
-  });
+async function initializePopup() {
+  try {
+    const result = await browserAPI.storage.local.get(['autoClose', 'redirectEnabled']);
+    // Default autoClose to true if not set
+    autoCloseToggle.checked = result.autoClose !== undefined ? result.autoClose : true;
+    // Default redirectEnabled to false if not set
+    frontendRedirectToggle.checked = result.redirectEnabled || false;
+  } catch (error) {
+    console.error('Error initializing popup state from storage:', error);
+  }
 }
 
 /**
  * Toggles the auto-close feature
  */
-async function toggleAutoClose() {
+async function handleAutoCloseToggle(event) {
+  const newState = event.target.checked;
   try {
-    // Get current state
-    const isCurrentlyEnabled = autoCloseToggle.dataset.on === 'on';
-    const newState = !isCurrentlyEnabled;
-    
-    // Update UI immediately for better UX
-    updateUI(newState);
-    
-    // Save to storage
-    await browserAPI.storage.local.set({ autoClose: newState });
-    
-    // Notify background script
-    await sendMessage({ 
-      action: 'toggleAutoClose', 
-      enabled: newState 
-    });
-    
-    // Show success message
-    statusText.textContent = newState ? 'Auto-close activated' : 'Auto-close deactivated';
+    // We don't need to wait for the background script to finish,
+    // just send the message.
+    browserAPI.storage.local.set({ autoClose: newState });
+    sendMessage({ command: 'setAutoClose', data: newState });
   } catch (error) {
-    console.error('Error toggling auto-close:', error);
-    statusText.textContent = 'Error changing settings';
-    
-    // Revert UI if there was an error
-    initializePopup();
+    console.error('Error setting auto-close state:', error);
+    event.target.checked = !newState; // Revert UI on error
   }
 }
 
-// Event listeners
-autoCloseToggle.addEventListener('click', toggleAutoClose);
-
-// Listen for changes from background script
-browserAPI.storage.onChanged.addListener((changes) => {
-  if (changes.autoClose) {
-    updateUI(changes.autoClose.newValue);
+/**
+ * Toggles the redirect feature
+ */
+async function handleFrontendRedirectToggle(event) {
+  const newState = event.target.checked;
+  try {
+    browserAPI.storage.local.set({ redirectEnabled: newState });
+    sendMessage({ command: 'setRedirect', data: newState });
+  } catch (error) {
+    console.error('Error setting redirect state:', error);
+    event.target.checked = !newState; // Revert UI on error
   }
-});
+}
 
 /**
- * Fetches the extension version from manifest.json and displays it
+ * Displays the version number
  */
 function displayVersion() {
   try {
@@ -128,10 +97,12 @@ function displayVersion() {
 
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  // Add event listeners
+  autoCloseToggle.addEventListener('change', handleAutoCloseToggle);
+  frontendRedirectToggle.addEventListener('change', handleFrontendRedirectToggle);
+
+  // Initialize popup state
   initializePopup();
   displayVersion();
 });
-
-// Check extension status on popup open
-initializePopup();
 

@@ -12,7 +12,9 @@ const SUCCESS_MESSAGE = 'Authentication details received, processing details. Yo
 
 // State
 let autoCloseEnabled = true;
+let redirectEnabled = false;
 let closingTabs = new Set(); // Track tabs being closed to avoid duplicates
+let tabTimers = new Map(); // Track timers for each tab
 
 /**
  * Logs messages with timestamp and consistent formatting
@@ -41,51 +43,69 @@ function closeMatchingTab(tabId, url) {
   if (!autoCloseEnabled || url !== TARGET_URL) {
     return;
   }
-  
+
   // Avoid duplicate close attempts
   if (closingTabs.has(tabId)) {
     return;
   }
-  
+
   // Add to tracking set
   closingTabs.add(tabId);
-  
-  logMessage('info', `Monitoring tab ${tabId} for success message`);
-  
-  // Inject a content script to check for the success message
+  logMessage('info', `Monitoring tab ${tabId}. It will be closed in 5 seconds or when the success message is found.`);
+
+  const closeTab = (reason) => {
+    // Ensure we only try to close once
+    if (closingTabs.has(tabId)) {
+      // Clear any existing timer for this tab
+      if (tabTimers.has(tabId)) {
+        clearTimeout(tabTimers.get(tabId));
+        tabTimers.delete(tabId);
+      }
+
+      browserAPI.tabs.remove(tabId, () => {
+        if (browserAPI.runtime.lastError) {
+          // It's possible the tab is already closed, so we log a warning instead of an error.
+          logMessage('warn', `Could not close tab ${tabId} (${reason}): ${browserAPI.runtime.lastError.message}`);
+        } else {
+          logMessage('info', `Successfully closed tab ${tabId} (${reason}).`);
+        }
+        // Clean up state
+        closingTabs.delete(tabId);
+      });
+    }
+  };
+
+  // Set a 5-second timer to close the tab
+  const timerId = setTimeout(() => closeTab('timeout'), 5000);
+  tabTimers.set(tabId, timerId); // Store the timer
+
+  // Check for the success message immediately
   browserAPI.scripting.executeScript({
     target: { tabId: tabId },
     function: checkForSuccessMessage,
     args: [SUCCESS_MESSAGE]
   }, (results) => {
     if (browserAPI.runtime.lastError) {
-      logMessage('error', `Error executing content script in tab ${tabId}:`, browserAPI.runtime.lastError);
-      closingTabs.delete(tabId);
+      // This is expected if the tab is an error page (e.g., server not running).
+      // We'll log it as a warning and let the 5-second timeout handle closing the tab.
+      logMessage('warn', `Could not inject script into tab ${tabId}: ${browserAPI.runtime.lastError.message}. The tab will be closed by timeout.`);
+      // We do NOT clear the timer or clean up state here. We let the timeout run.
       return;
     }
-    
+
     const result = results && results[0];
     if (result && result.result === true) {
-      // Success message found, close the tab
-      browserAPI.tabs.remove(tabId, () => {
-        if (browserAPI.runtime.lastError) {
-          logMessage('error', `Error closing tab ${tabId}:`, browserAPI.runtime.lastError);
-        } else {
-          logMessage('info', `Successfully closed tab ${tabId} after detecting success message`);
-        }
-        closingTabs.delete(tabId);
-      });
+      // Success message found, close the tab immediately and cancel the timer
+      clearTimeout(timerId);
+      closeTab('success message');
     } else {
-      // Message not found yet, set up a mutation observer via content script
+      // Message not found yet, set up a mutation observer.
+      // The 'successMessageFound' message handler will also need to clear the timer.
+      // We'll modify the message listener to handle this.
       browserAPI.scripting.executeScript({
         target: { tabId: tabId },
         function: setupMutationObserver,
         args: [SUCCESS_MESSAGE, tabId]
-      }, () => {
-        if (browserAPI.runtime.lastError) {
-          logMessage('error', `Error setting up observer in tab ${tabId}:`, browserAPI.runtime.lastError);
-          closingTabs.delete(tabId);
-        }
       });
     }
   });
@@ -96,16 +116,24 @@ function closeMatchingTab(tabId, url) {
  */
 function checkExistingTabs() {
   if (!autoCloseEnabled) return;
-  
+
   browserAPI.tabs.query({ url: TARGET_URL }, (tabs) => {
     if (browserAPI.runtime.lastError) {
       logMessage('error', 'Error querying tabs:', browserAPI.runtime.lastError);
       return;
     }
-    
+
     if (tabs && tabs.length > 0) {
-      logMessage('info', `Found ${tabs.length} existing target tabs to close`);
-      tabs.forEach(tab => closeMatchingTab(tab.id, tab.url));
+      logMessage('info', `Found ${tabs.length} existing target tabs to monitor.`);
+      tabs.forEach(tab => {
+        // If the tab is still loading, wait a moment before trying to interact with it.
+        // This helps prevent errors from injecting scripts into pages that aren't ready.
+        if (tab.status === 'loading') {
+          setTimeout(() => closeMatchingTab(tab.id, tab.url), 1000);
+        } else {
+          closeMatchingTab(tab.id, tab.url);
+        }
+      });
     }
   });
 }
@@ -115,6 +143,22 @@ function checkExistingTabs() {
  * @param {boolean} enabled - The new state (if provided)
  * @returns {boolean} - The new state
  */
+/**
+ * Enables or disables the declarative net request rules for redirection.
+ * @param {boolean} enabled - Whether to enable or disable the rules.
+ */
+async function updateRedirectRules(enabled) {
+  const options = {
+    ...(enabled ? { enableRulesetIds: ['ruleset_1'] } : { disableRulesetIds: ['ruleset_1'] }),
+  };
+  try {
+    await browserAPI.declarativeNetRequest.updateEnabledRulesets(options);
+    logMessage('info', `Redirect ruleset 'ruleset_1' ${enabled ? 'enabled' : 'disabled'}.`);
+  } catch (error) {
+    logMessage('error', 'Failed to update redirect ruleset:', error);
+  }
+}
+
 function toggleAutoClose(enabled = null) {
   try {
     // If enabled is provided, use it; otherwise toggle current state
@@ -196,9 +240,9 @@ function setupMutationObserver(successMessage, tabId) {
 
 // Listen for new navigations
 browserAPI.webNavigation.onCommitted.addListener((details) => {
-  // Only handle main frame navigations (not iframes)
-  if (details.frameId === 0 && details.url === TARGET_URL) {
-    logMessage('info', `Detected navigation to target URL in tab ${details.tabId}`);
+  // Only proceed if auto-close is enabled and it's a main frame navigation to the target URL
+  if (autoCloseEnabled && details.frameId === 0 && details.url === TARGET_URL) {
+    logMessage('info', `Detected navigation to target URL in tab ${details.tabId}. Auto-close is active.`);
     // Wait a moment for the page to load before checking
     setTimeout(() => {
       closeMatchingTab(details.tabId, details.url);
@@ -206,24 +250,73 @@ browserAPI.webNavigation.onCommitted.addListener((details) => {
   }
 });
 
-// Listen for config changes
+// Listen for config changes from storage
 browserAPI.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.autoClose !== undefined) {
+  if (area !== 'local') return;
+
+  if (changes.autoClose !== undefined) {
     autoCloseEnabled = changes.autoClose.newValue;
     logMessage('info', `Auto-close setting changed to: ${autoCloseEnabled}`);
+  }
+
+  if (changes.redirectEnabled !== undefined) {
+    redirectEnabled = changes.redirectEnabled.newValue;
+    updateRedirectRules(redirectEnabled);
+    logMessage('info', `Redirect setting changed to: ${redirectEnabled}`);
   }
 });
 
 // Handle messages from popup and content scripts
 browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
   logMessage('info', 'Received message:', request);
-  
-  if (request.action === 'toggleAutoClose') {
-    const newState = toggleAutoClose(request.enabled);
-    sendResponse({ success: true, enabled: newState });
-  } else if (request.action === 'getStatus') {
-    sendResponse({ enabled: autoCloseEnabled });
-  } else if (request.action === 'successMessageFound') {
+
+  switch (request.command) {
+    case 'setAutoClose':
+      autoCloseEnabled = request.data;
+      browserAPI.storage.local.set({ autoClose: autoCloseEnabled });
+      logMessage('info', `Auto-close set to: ${autoCloseEnabled}`);
+      sendResponse({ success: true });
+      break;
+
+    case 'getAutoCloseState':
+      sendResponse({ isEnabled: autoCloseEnabled });
+      break;
+
+    case 'setRedirect':
+      redirectEnabled = request.data;
+      browserAPI.storage.local.set({ redirectEnabled: redirectEnabled });
+      updateRedirectRules(redirectEnabled);
+      sendResponse({ success: true });
+      break;
+
+    case 'getRedirectState':
+      sendResponse({ isEnabled: redirectEnabled });
+      break;
+
+    case 'successMessageFound':
+      const tabId = request.tabId;
+      if (tabId && closingTabs.has(tabId)) {
+        logMessage('info', `Success message found by observer in tab ${tabId}. Closing now.`);
+        // Get the timer, clear it, and close the tab.
+        if (tabTimers.has(tabId)) {
+          clearTimeout(tabTimers.get(tabId));
+          tabTimers.delete(tabId);
+        }
+        // Re-use the closeTab logic if possible, or just close directly.
+        // For simplicity, we'll just close it directly here.
+        browserAPI.tabs.remove(tabId, () => {
+          if (browserAPI.runtime.lastError) {
+            logMessage('warn', `Could not close tab ${tabId} (success message):`, browserAPI.runtime.lastError.message);
+          } else {
+            logMessage('info', `Successfully closed tab ${tabId} (success message).`);
+          }
+          closingTabs.delete(tabId);
+        });
+      }
+      break;
+  }
+
+  if (request.action === 'successMessageFound') {
     // Content script found the success message, close the tab
     const tabId = request.tabId;
     if (tabId && closingTabs.has(tabId)) {
@@ -243,21 +336,30 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Initialization
-
-// Load settings from storage
-browserAPI.storage.local.get(['autoClose'], (result) => {
-  if (browserAPI.runtime.lastError) {
-    logMessage('error', 'Error loading settings:', browserAPI.runtime.lastError);
-  } else {
+async function initialize() {
+  try {
+    const result = await browserAPI.storage.local.get(['autoClose', 'redirectEnabled']);
+    
+    // Initialize auto-close state, defaulting to true
     autoCloseEnabled = result.autoClose !== undefined ? result.autoClose : true;
     logMessage('info', `Initialized with auto-close ${autoCloseEnabled ? 'enabled' : 'disabled'}`);
+
+    // Initialize redirect state, defaulting to false
+    redirectEnabled = result.redirectEnabled || false;
+    logMessage('info', `Initialized with redirect ${redirectEnabled ? 'enabled' : 'disabled'}`);
     
-    // Check for existing tabs to close
+    // Apply rules based on loaded state
+    await updateRedirectRules(redirectEnabled);
+
+    // Check for existing tabs to close if enabled
     if (autoCloseEnabled) {
       checkExistingTabs();
     }
-  }
-});
 
-// Log extension startup
-logMessage('info', 'Criteria Toolkit extension initialized');
+    logMessage('info', 'Criteria Toolkit extension initialized successfully');
+  } catch (error) {
+    logMessage('error', 'Error during initialization:', error);
+  }
+}
+
+initialize();
