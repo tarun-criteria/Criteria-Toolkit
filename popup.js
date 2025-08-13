@@ -8,7 +8,8 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 // DOM elements
 const autoCloseToggle = document.getElementById('autoClose');
-const frontendRedirectToggle = document.getElementById('frontendRedirectToggle');
+const frontendRedirectToggle = document.getElementById('frontend-redirect-toggle');
+const backendRedirectToggle = document.getElementById('backend-redirect-toggle');
 const versionElement = document.querySelector('.version');
 
 /**
@@ -37,11 +38,12 @@ function sendMessage(message) {
  */
 async function initializePopup() {
   try {
-    const result = await browserAPI.storage.local.get(['autoClose', 'redirectEnabled']);
+    const result = await browserAPI.storage.local.get(['autoClose', 'frontendRedirectEnabled', 'backendRedirectEnabled']);
     // Default autoClose to true if not set
     autoCloseToggle.checked = result.autoClose !== undefined ? result.autoClose : true;
-    // Default redirectEnabled to false if not set
-    frontendRedirectToggle.checked = result.redirectEnabled || false;
+    // Default redirect states to false if not set
+    frontendRedirectToggle.checked = result.frontendRedirectEnabled || false;
+    backendRedirectToggle.checked = result.backendRedirectEnabled || false;
   } catch (error) {
     console.error('Error initializing popup state from storage:', error);
   }
@@ -69,10 +71,24 @@ async function handleAutoCloseToggle(event) {
 async function handleFrontendRedirectToggle(event) {
   const newState = event.target.checked;
   try {
-    browserAPI.storage.local.set({ redirectEnabled: newState });
-    sendMessage({ command: 'setRedirect', data: newState });
+    browserAPI.storage.local.set({ frontendRedirectEnabled: newState });
+    sendMessage({ command: 'setFrontendRedirect', data: newState });
   } catch (error) {
-    console.error('Error setting redirect state:', error);
+    console.error('Error setting frontend redirect state:', error);
+    event.target.checked = !newState; // Revert UI on error
+  }
+}
+
+/**
+ * Toggles the backend redirect feature
+ */
+async function handleBackendRedirectToggle(event) {
+  const newState = event.target.checked;
+  try {
+    browserAPI.storage.local.set({ backendRedirectEnabled: newState });
+    sendMessage({ command: 'setBackendRedirect', data: newState });
+  } catch (error) {
+    console.error('Error setting backend redirect state:', error);
     event.target.checked = !newState; // Revert UI on error
   }
 }
@@ -100,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add event listeners
   autoCloseToggle.addEventListener('change', handleAutoCloseToggle);
   frontendRedirectToggle.addEventListener('change', handleFrontendRedirectToggle);
+  backendRedirectToggle.addEventListener('change', handleBackendRedirectToggle);
 
   // Initialize popup state
   initializePopup();

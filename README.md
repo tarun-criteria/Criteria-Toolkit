@@ -1,19 +1,21 @@
 # Criteria Toolkit Extension
 
-A browser extension with tools for Criteria developers, including automatically closing VPN/authentication tabs and redirecting Frontend URLs.
+A browser extension with tools for Criteria developers, including automatically closing VPN/authentication tabs and redirecting Frontend and Backend URLs.
 
 ## Features
 
 - **Auto-close VPN Tab**: Automatically closes the local authentication tab (`http://127.0.0.1:35001/`) to streamline the development workflow.
-- **Frontend URL Redirect**: Redirects Frontend to the local development environment.
-- **Popup UI**: A simple popup allows you to toggle both the auto-close and redirect features on or off.
+- **URL Redirects**:
+  - **FE Redirect**: Redirects the frontend to your local development environment (`http://localhost:3010`).
+  - **BE Redirect**: Redirects the backend API to your local development environment (`http://localhost:8888`).
+- **Popup UI**: A simple popup allows you to toggle the auto-close and redirect features on or off.
 - **State Persistence**: Your preferences for the toggles are saved and restored across browser sessions.
 - **Cross-browser Compatibility**: Works with Chrome and Edge.
 
 ## Usage
 
 1. Click on the extension icon in your browser's toolbar to open the popup.
-2. Use the toggles to enable or disable the "Auto Close" and "Redirect" features as needed.
+2. Use the toggles to enable or disable the "Auto Close", "FE Redirect", and "BE Redirect" features as needed.
 
 ## Installation Instructions
 

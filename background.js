@@ -12,7 +12,8 @@ const SUCCESS_MESSAGE = 'Authentication details received, processing details. Yo
 
 // State
 let autoCloseEnabled = true;
-let redirectEnabled = false;
+let frontendRedirectEnabled = false;
+let backendRedirectEnabled = false;
 let closingTabs = new Set(); // Track tabs being closed to avoid duplicates
 let tabTimers = new Map(); // Track timers for each tab
 
@@ -147,15 +148,30 @@ function checkExistingTabs() {
  * Enables or disables the declarative net request rules for redirection.
  * @param {boolean} enabled - Whether to enable or disable the rules.
  */
-async function updateRedirectRules(enabled) {
-  const options = {
-    ...(enabled ? { enableRulesetIds: ['ruleset_1'] } : { disableRulesetIds: ['ruleset_1'] }),
-  };
+async function updateRedirectRules(frontendEnabled, backendEnabled) {
+  const rulesToEnable = [];
+  const rulesToDisable = [];
+
+  if (frontendEnabled) {
+    rulesToEnable.push('frontend_rules');
+  } else {
+    rulesToDisable.push('frontend_rules');
+  }
+
+  if (backendEnabled) {
+    rulesToEnable.push('backend_rules');
+  } else {
+    rulesToDisable.push('backend_rules');
+  }
+
   try {
-    await browserAPI.declarativeNetRequest.updateEnabledRulesets(options);
-    logMessage('info', `Redirect ruleset 'ruleset_1' ${enabled ? 'enabled' : 'disabled'}.`);
+    await browserAPI.declarativeNetRequest.updateEnabledRulesets({
+      enableRulesetIds: rulesToEnable,
+      disableRulesetIds: rulesToDisable,
+    });
+    logMessage('info', `Redirects updated. Enabled: ${rulesToEnable.join(', ')}. Disabled: ${rulesToDisable.join(', ')}`);
   } catch (error) {
-    logMessage('error', 'Failed to update redirect ruleset:', error);
+    logMessage('error', 'Failed to update redirect rulesets:', error);
   }
 }
 
@@ -259,10 +275,16 @@ browserAPI.storage.onChanged.addListener((changes, area) => {
     logMessage('info', `Auto-close setting changed to: ${autoCloseEnabled}`);
   }
 
-  if (changes.redirectEnabled !== undefined) {
-    redirectEnabled = changes.redirectEnabled.newValue;
-    updateRedirectRules(redirectEnabled);
-    logMessage('info', `Redirect setting changed to: ${redirectEnabled}`);
+  if (changes.frontendRedirectEnabled !== undefined) {
+    frontendRedirectEnabled = changes.frontendRedirectEnabled.newValue;
+    updateRedirectRules(frontendRedirectEnabled, backendRedirectEnabled);
+    logMessage('info', `Frontend redirect setting changed to: ${frontendRedirectEnabled}`);
+  }
+
+  if (changes.backendRedirectEnabled !== undefined) {
+    backendRedirectEnabled = changes.backendRedirectEnabled.newValue;
+    updateRedirectRules(frontendRedirectEnabled, backendRedirectEnabled);
+    logMessage('info', `Backend redirect setting changed to: ${backendRedirectEnabled}`);
   }
 });
 
@@ -282,15 +304,18 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ isEnabled: autoCloseEnabled });
       break;
 
-    case 'setRedirect':
-      redirectEnabled = request.data;
-      browserAPI.storage.local.set({ redirectEnabled: redirectEnabled });
-      updateRedirectRules(redirectEnabled);
+    case 'setFrontendRedirect':
+      frontendRedirectEnabled = request.data;
+      // No need to set storage here, popup.js does it
+      updateRedirectRules(frontendRedirectEnabled, backendRedirectEnabled);
       sendResponse({ success: true });
       break;
 
-    case 'getRedirectState':
-      sendResponse({ isEnabled: redirectEnabled });
+    case 'setBackendRedirect':
+      backendRedirectEnabled = request.data;
+      // No need to set storage here, popup.js does it
+      updateRedirectRules(frontendRedirectEnabled, backendRedirectEnabled);
+      sendResponse({ success: true });
       break;
 
     case 'successMessageFound':
@@ -338,18 +363,19 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Initialization
 async function initialize() {
   try {
-    const result = await browserAPI.storage.local.get(['autoClose', 'redirectEnabled']);
+    const result = await browserAPI.storage.local.get(['autoClose', 'frontendRedirectEnabled', 'backendRedirectEnabled']);
     
     // Initialize auto-close state, defaulting to true
     autoCloseEnabled = result.autoClose !== undefined ? result.autoClose : true;
     logMessage('info', `Initialized with auto-close ${autoCloseEnabled ? 'enabled' : 'disabled'}`);
 
-    // Initialize redirect state, defaulting to false
-    redirectEnabled = result.redirectEnabled || false;
-    logMessage('info', `Initialized with redirect ${redirectEnabled ? 'enabled' : 'disabled'}`);
-    
+    // Initialize redirect states, defaulting to false
+    frontendRedirectEnabled = result.frontendRedirectEnabled || false;
+    backendRedirectEnabled = result.backendRedirectEnabled || false;
+    logMessage('info', `Initialized with Frontend Redirect: ${frontendRedirectEnabled}, Backend Redirect: ${backendRedirectEnabled}`);
+
     // Apply rules based on loaded state
-    await updateRedirectRules(redirectEnabled);
+    await updateRedirectRules(frontendRedirectEnabled, backendRedirectEnabled);
 
     // Check for existing tabs to close if enabled
     if (autoCloseEnabled) {

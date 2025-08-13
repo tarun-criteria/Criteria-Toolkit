@@ -6,7 +6,8 @@
   "permissions": ["tabs", "webNavigation", "storage", "scripting", "declarativeNetRequest"],
   "host_permissions": [
     "http://127.0.0.1:35001/",
-    "https://hireselect-dev.criteriacorp.com/*"
+    "https://hireselect-dev.criteriacorp.com/*",
+    "https://api-dev.criteriacorp.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -14,9 +15,14 @@
   "declarative_net_request": {
     "rule_resources": [
       {
-        "id": "ruleset_1",
-        "enabled": true,
-        "path": "rules.json"
+        "id": "frontend_rules",
+        "enabled": false,
+        "path": "frontend_rules.json"
+      },
+      {
+        "id": "backend_rules",
+        "enabled": false,
+        "path": "backend_rules.json"
       }
     ]
   },
