@@ -43,7 +43,6 @@ async function initializePopup() {
     autoCloseToggle.checked = result.autoClose !== undefined ? result.autoClose : true;
     // Default redirect states to false if not set
     frontendRedirectToggle.checked = result.frontendRedirectEnabled || false;
-    backendRedirectToggle.checked = result.backendRedirectEnabled || false;
   } catch (error) {
     console.error('Error initializing popup state from storage:', error);
   }
@@ -116,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add event listeners
   autoCloseToggle.addEventListener('change', handleAutoCloseToggle);
   frontendRedirectToggle.addEventListener('change', handleFrontendRedirectToggle);
-  backendRedirectToggle.addEventListener('change', handleBackendRedirectToggle);
+  // backendRedirectToggle.addEventListener('change', handleBackendRedirectToggle);
 
   // Initialize popup state
   initializePopup();
